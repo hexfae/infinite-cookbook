@@ -438,7 +438,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "infinite-craft-cookbook"
+name = "infinite-cookbook"
 version = "0.1.0"
 dependencies = [
  "bincode",
