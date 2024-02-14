@@ -1,12 +1,12 @@
-use std::sync::Arc;
-
+use arcstr::ArcStr;
 use derive_new::new;
-use parking_lot::RwLock;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use crate::{collection::Collection, finite_item::FiniteItem, item::Item};
 
-#[derive(Serialize, Deserialize, new)]
+#[derive(Debug, Serialize, Deserialize, new, Clone)]
 pub struct FiniteCollection {
     items: Vec<FiniteItem>,
 }
@@ -18,30 +18,36 @@ impl std::fmt::Display for FiniteCollection {
 }
 
 impl FiniteCollection {
-    pub fn to_items(&self) -> Vec<Arc<RwLock<Item>>> {
-        self.items
-            .iter()
-            .map(FiniteItem::to_item)
-            .collect::<Vec<Arc<RwLock<Item>>>>()
-    }
+    // pub fn to_items(&self) -> Vec<Item> {
+    //     self.items.iter().map(FiniteItem::to_item).collect_vec()
+    // }
 
     // TODO: write
     /// # Panics
     #[must_use]
     pub fn to_collection(&self) -> Collection {
-        let collection = Collection::from_items(self.to_items());
+        let collection = Collection::default();
         for finite_item in &self.items {
-            for (first_name, second_name) in finite_item.parents() {
+            let mut item = finite_item.to_item();
+            // insert here needed because an item
+            // could have itself as a parent maybe
+            collection
+                .items
+                .insert(finite_item.name().into(), item.clone());
+            for (first, second) in finite_item.parents() {
                 let first = collection
-                    .find_by_name(first_name)
-                    .expect("valid saved file");
+                    .items
+                    .get(first)
+                    .map_or_else(|| ArcStr::from(first), |item| item.clone().name());
                 let second = collection
-                    .find_by_name(second_name)
-                    .expect("valid saved file");
-                let item = collection
-                    .find_by_finite_item(finite_item)
-                    .expect("valid saved file");
-                item.write().push_parents(first.clone(), second.clone());
+                    .items
+                    .get(second)
+                    .map_or_else(|| ArcStr::from(second), |item| item.clone().name());
+                item.push_parents(first, second);
+                // insert again because, if an item has itself as its parent
+                collection
+                    .items
+                    .insert(finite_item.name().into(), item.clone());
             }
         }
         collection

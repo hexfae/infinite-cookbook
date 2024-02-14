@@ -1,15 +1,13 @@
 use crate::finite_item::FiniteItem;
-use parking_lot::RwLock;
-use std::sync::Arc;
+use arcstr::ArcStr;
+use itertools::Itertools;
 
-type Parents = Vec<(Arc<RwLock<Item>>, Arc<RwLock<Item>>)>;
-
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Item {
-    name: Arc<String>,
-    emoji: Arc<String>,
+    name: ArcStr,
+    emoji: ArcStr,
     is_new: bool,
-    parents: Parents,
+    parents: Vec<(ArcStr, ArcStr)>,
 }
 
 impl std::fmt::Display for Item {
@@ -25,22 +23,40 @@ impl std::fmt::Display for Item {
 }
 
 impl Item {
-    pub fn new(
-        name: impl Into<String>,
-        emoji: impl Into<String>,
-        is_new: bool,
-    ) -> Arc<RwLock<Self>> {
-        Arc::new(RwLock::new(Self {
-            name: Arc::new(name.into()),
-            emoji: Arc::new(emoji.into()),
+    #[must_use]
+    pub fn new(name: &str, emoji: &str, is_new: bool) -> Self {
+        Self {
+            name: ArcStr::from(name),
+            emoji: ArcStr::from(emoji),
             is_new,
-            ..Default::default()
-        }))
+            parents: vec![],
+        }
     }
 
     #[must_use]
-    pub fn name(&self) -> String {
-        self.name.to_string()
+    pub fn new_with_parents(
+        name: &str,
+        emoji: &str,
+        is_new: bool,
+        first: &str,
+        second: &str,
+    ) -> Self {
+        Self {
+            name: ArcStr::from(name),
+            emoji: ArcStr::from(emoji),
+            is_new,
+            parents: vec![(first.into(), second.into())],
+        }
+    }
+
+    #[must_use]
+    pub fn name(&self) -> ArcStr {
+        self.name.clone()
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.name
     }
 
     #[must_use]
@@ -49,25 +65,22 @@ impl Item {
     }
 
     #[must_use]
-    pub const fn parents(&self) -> &Parents {
+    pub fn parents(&self) -> &[(ArcStr, ArcStr)] {
         &self.parents
     }
 
     #[must_use]
     pub fn is_nothing(&self) -> bool {
-        &self.name() == "Nothing"
+        self.name() == "Nothing"
     }
 
-    pub fn push_parents(&mut self, first: Arc<RwLock<Self>>, second: Arc<RwLock<Self>>) {
+    pub fn push_parents(&mut self, first: ArcStr, second: ArcStr) {
         self.parents.push((first, second));
     }
 
-    pub fn contains_parents(&self, first: &Arc<RwLock<Self>>, second: &Arc<RwLock<Self>>) -> bool {
+    #[must_use]
+    pub fn contains_parents(&self, first: &str, second: &str) -> bool {
         self.parents.iter().any(|(item1, item2)| {
-            let item1 = &item1.read().name;
-            let item2 = &item2.read().name;
-            let first = &first.read().name;
-            let second = &second.read().name;
             item1 == first && item2 == second || item1 == second && item2 == first
         })
     }
@@ -75,13 +88,13 @@ impl Item {
     #[must_use]
     pub fn to_finite(&self) -> FiniteItem {
         FiniteItem::new(
-            self.name.to_string(),
-            self.emoji.to_string(),
+            &self.name,
+            &self.emoji,
             self.is_new,
             self.parents
                 .iter()
-                .map(|(first, second)| (first.read().name(), second.read().name()))
-                .collect(),
+                .map(|(f, s)| (f.as_str(), s.as_str()))
+                .collect_vec(),
         )
     }
 }

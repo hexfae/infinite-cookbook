@@ -1,12 +1,10 @@
-use std::sync::Arc;
-
-use derive_new::new;
-use parking_lot::RwLock;
+use arcstr::ArcStr;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::item::Item;
 
-#[derive(Serialize, Deserialize, new, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FiniteItem {
     name: String,
     emoji: String,
@@ -28,13 +26,26 @@ impl std::fmt::Display for FiniteItem {
 
 impl FiniteItem {
     #[must_use]
-    pub fn to_item(&self) -> Arc<RwLock<Item>> {
+    pub fn new(name: &str, emoji: &str, is_new: bool, parents: Vec<(&str, &str)>) -> Self {
+        Self {
+            name: name.into(),
+            emoji: emoji.into(),
+            is_new,
+            parents: parents
+                .into_iter()
+                .map(|(f, s)| (f.into(), s.into()))
+                .collect(),
+        }
+    }
+
+    #[must_use]
+    pub fn to_item(&self) -> Item {
         Item::new(&self.name, &self.emoji, self.is_new)
     }
 
     #[must_use]
-    pub fn name(&self) -> String {
-        self.name.clone()
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     #[must_use]
@@ -43,7 +54,10 @@ impl FiniteItem {
     }
 
     #[must_use]
-    pub const fn parents(&self) -> &Vec<(String, String)> {
-        &self.parents
+    pub fn parents(&self) -> Vec<(&str, &str)> {
+        self.parents
+            .iter()
+            .map(|(f, s)| (f.as_str(), s.as_str()))
+            .collect_vec()
     }
 }

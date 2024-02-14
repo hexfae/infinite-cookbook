@@ -1,7 +1,6 @@
 use collection::Collection;
 use color_eyre::Result;
 use inquire::{MultiSelect, Select, Text};
-use itertools::Itertools;
 use tracing::info;
 
 pub mod collection;
@@ -20,19 +19,21 @@ async fn main() -> Result<()> {
     let choices = vec!["scan", "craft", "add", "help", "view", "quit"];
 
     loop {
-        match Select::new("what do?", choices.clone()).prompt()? {
+        match Select::new("what do?", choices.clone())
+            .prompt_skippable()?
+            .unwrap_or("")
+        {
             "scan" => loop {
                 let now = std::time::Instant::now();
-                let found = collection.scan_all().await?;
-                tracing::info!("found {found} new items!");
-                tracing::info!(
+                let found = collection.scan().await?;
+                info!("found {found} new items!");
+                info!(
                     "scan finished in {} seconds ({} minutes)",
                     now.elapsed().as_secs(),
-                    now.elapsed().as_secs() / 60
+                    now.elapsed().as_secs_f64() / 60.0
                 );
                 collection.save("collection.ron")?;
             },
-            "craft" => craft(&mut collection).await?,
             "add" => add(&mut collection)?,
             "help" => println!("{INFO}"),
             "view" => view(&collection)?,
@@ -43,29 +44,9 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn craft(collection: &mut Collection) -> Result<()> {
-    let finite_items = collection.to_finite_items();
-    let selection = MultiSelect::new("first", finite_items)
-        .with_page_size(20)
-        .prompt()?;
-    let items = selection
-        .iter()
-        .filter_map(|item| collection.find_by_finite_item(item))
-        .collect_vec();
-    let now = std::time::Instant::now();
-    let found = collection.scan(&items).await?;
-    info!("found {found} new items!");
-    info!(
-        "scan finished in {} seconds ({} minutes)",
-        now.elapsed().as_secs(),
-        now.elapsed().as_secs() / 60
-    );
-    collection.save("collection.ron")?;
-    Ok(())
-}
-
 fn view(collection: &Collection) -> Result<()> {
-    let items = collection.to_finite_items();
+    let items = collection.items.clone().into_read_only();
+    let items = items.values().collect();
     let _ = MultiSelect::new("view", items)
         .with_page_size(20)
         .with_vim_mode(true)
